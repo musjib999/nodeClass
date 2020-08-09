@@ -2,6 +2,7 @@ const express = require('express');
 const server = express();
 const UserModel = require('./models/user.model');
 const bcrypt = require('bcrypt');
+const jsonwebtoken = require('jsonwebtoken');
 require('./connection')();
 
 const bodyParser = require('body-parser');
@@ -10,14 +11,11 @@ const bodyParser = require('body-parser');
 server.use(bodyParser.json());
 server.use(bodyParser.urlencoded({ extended: true }));
 
-server.get('/', (req, res) => {
-    res.json({ status: 'success' });
-});
 
 
 //login in a user
 server.post('/user/login', (req, res) => {
-    //getting an imstance of the username and password
+    //getting an instance of the username and password
     const { username, password } = req.body;
 
     //finding the username to authenticate
@@ -31,16 +29,21 @@ server.post('/user/login', (req, res) => {
         let flag = bcrypt.compareSync(password, userDbPassword);
 
         if (flag) {
+            user.password = '********';
+
+            //generating token form jwt
+            let token = jsonwebtoken.sign({ user }, "mySuperSecret1234", { expiresIn: 5 * 60 });
+            // console.log(token);
             res.status(200).json({ status: 'success', payload: user, message: 'User logged in successfully' });
-        }else{
-            res.status(200).json({status: 'failed', payload: null, message: 'Invalid username or password'});
+        } else {
+            res.status(200).json({ status: 'failed', payload: null, message: 'Invalid username or password' });
         }
 
     })
 })
 
 //creating a new user
-server.post('/user', (req, res) => {
+server.post('/user/register', (req, res) => {
     let newUser = new UserModel(req.body);
     newUser.save((err, result) => {
         if (err) {
@@ -48,6 +51,22 @@ server.post('/user', (req, res) => {
         }
         res.status(200).json({ status: 'Success', payload: result, message: 'User created successfully' });
     });
+});
+
+//Creating a middle ware
+
+server.use((req, res, next) => {
+    const token = req.body.token || req.query.token || req.header['my-token'];
+    
+    if(token){
+        res.status(200).json({ status: 'Success', payload: token, message: 'User created successfully' });
+    }else{
+        res.status(401).json({ status: 'failed', payload: null, message: 'Please provide a token' });
+    }
+})
+
+server.get('/', (req, res) => {
+    res.json({ status: 'success' });
 });
 
 //getting all users
